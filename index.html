@@ -1635,6 +1635,15 @@ let tt;
 function toast(msg){ const el=document.getElementById('toast'); el.textContent=msg; el.classList.add('show'); clearTimeout(tt); tt=setTimeout(()=>el.classList.remove('show'),3000); }
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
 document.getElementById('profile-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('profile-overlay'))closeProfile();});
+
+// Physical keyboard support for PIN entry
+document.addEventListener('keydown', e => {
+  // Only fire when auth screen is visible (user is on login screen)
+  if(document.getElementById('auth-screen').style.display==='none') return;
+  if(e.key>='0' && e.key<='9') lp(e.key);
+  else if(e.key==='Backspace') loginDel();
+  else if(e.key==='Escape'||e.key==='Delete') loginClear();
+});
 </script>
 </body>
 </html>
