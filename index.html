@@ -651,9 +651,27 @@
       <button class="profile-hero-close" onclick="closeProfile()">×</button>
       <div class="profile-avatar" id="prof-avatar">?</div>
       <div class="profile-hero-info">
-        <div class="profile-hero-name" id="prof-name">—</div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div class="profile-hero-name" id="prof-name">—</div>
+          <button id="prof-edit-btn" onclick="toggleProfileEdit()" style="background:rgba(255,255,255,0.18);border:none;border-radius:6px;color:white;font-size:11px;font-weight:600;padding:3px 9px;cursor:pointer;letter-spacing:0.04em;">Edit</button>
+        </div>
         <div class="profile-hero-role" id="prof-role">—</div>
         <div class="profile-pts-pill" id="prof-pts">0 <span>pts</span></div>
+        <!-- inline edit form -->
+        <div id="prof-edit-form" style="display:none;margin-top:10px;display:none;">
+          <input id="prof-edit-name" type="text" placeholder="Full name"
+            style="width:100%;padding:8px 10px;border-radius:8px;border:none;font-size:14px;font-family:'DM Sans',sans-serif;margin-bottom:6px;outline:none;">
+          <div id="prof-edit-role-wrap" style="display:none;margin-bottom:6px;">
+            <select id="prof-edit-role" style="width:100%;padding:8px 10px;border-radius:8px;border:none;font-size:14px;font-family:'DM Sans',sans-serif;outline:none;">
+              <option value="hourly">Hourly Associate</option>
+              <option value="manager">Manager</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:7px;">
+            <button onclick="saveProfileEdit()" style="flex:1;background:white;color:var(--teal);border:none;border-radius:8px;padding:8px;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">Save</button>
+            <button onclick="toggleProfileEdit()" style="background:rgba(255,255,255,0.15);color:white;border:none;border-radius:8px;padding:8px 12px;font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;">Cancel</button>
+          </div>
+        </div>
       </div>
     </div>
     <div class="profile-body">
@@ -1557,7 +1575,52 @@ function openProfile(uid){
 
   document.getElementById('profile-overlay').classList.add('open');
 }
-function closeProfile(){ document.getElementById('profile-overlay').classList.remove('open'); }
+function closeProfile(){
+  document.getElementById('profile-overlay').classList.remove('open');
+  // reset edit form if open
+  document.getElementById('prof-edit-form').style.display='none';
+  document.getElementById('prof-name').style.display='';
+}
+function toggleProfileEdit(){
+  const form=document.getElementById('prof-edit-form');
+  const nameEl=document.getElementById('prof-name');
+  const isOpen=form.style.display==='block';
+  if(isOpen){
+    form.style.display='none';
+    nameEl.style.display='';
+  } else {
+    const u=S.users.find(x=>x.id===profileUid); if(!u) return;
+    document.getElementById('prof-edit-name').value=u.name;
+    document.getElementById('prof-edit-role').value=u.role;
+    // Only managers can change roles, and only for others
+    const canChangeRole=CU.role==='manager'&&profileUid!==CU.id;
+    document.getElementById('prof-edit-role-wrap').style.display=canChangeRole?'block':'none';
+    form.style.display='block';
+    nameEl.style.display='none';
+    document.getElementById('prof-edit-name').focus();
+  }
+}
+function saveProfileEdit(){
+  const u=S.users.find(x=>x.id===profileUid); if(!u) return;
+  const newName=document.getElementById('prof-edit-name').value.trim();
+  if(!newName){ document.getElementById('prof-edit-name').style.borderColor='red'; return; }
+  u.name=newName;
+  if(CU.role==='manager'&&profileUid!==CU.id){
+    u.role=document.getElementById('prof-edit-role').value;
+  }
+  // if editing self, update CU and topbar
+  if(profileUid===CU.id){ CU=u; setupBar(); }
+  save();
+  // refresh profile display
+  document.getElementById('prof-edit-form').style.display='none';
+  document.getElementById('prof-name').style.display='';
+  document.getElementById('prof-name').textContent=newName;
+  document.getElementById('prof-role').textContent=RF[u.role]||u.role;
+  const ini=newName.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+  document.getElementById('prof-avatar').textContent=ini;
+  renderTeam(); renderAdmin();
+  toast('Profile updated!');
+}
 
 // ═══════════════════════════════════════════════
 // ADMIN MILESTONES
