@@ -464,6 +464,29 @@
 
   .status-pending { background:#fff3cd; color:#856404; }
 
+  /* AVATAR PICKER */
+  .avatar-picker {
+    display:none; margin-top:12px;
+  }
+  .avatar-picker.open { display:block; }
+  .avatar-grid {
+    display:grid; grid-template-columns:repeat(8,1fr); gap:6px; margin-bottom:10px;
+    max-height:180px; overflow-y:auto; padding:4px;
+  }
+  .avatar-opt {
+    font-size:24px; width:38px; height:38px; border-radius:10px; border:2px solid transparent;
+    display:flex; align-items:center; justify-content:center; cursor:pointer;
+    transition:all 0.15s; background:var(--cream-dark);
+  }
+  .avatar-opt:hover { transform:scale(1.15); border-color:var(--teal); }
+  .avatar-opt.selected { border-color:var(--teal); background:rgba(29,95,110,0.1); transform:scale(1.1); }
+  .profile-avatar-wrap { position:relative; display:inline-block; cursor:pointer; }
+  .avatar-edit-hint {
+    position:absolute; bottom:-2px; right:-2px; background:var(--teal); color:white;
+    border-radius:50%; width:20px; height:20px; font-size:11px;
+    display:flex; align-items:center; justify-content:center; border:2px solid white;
+  }
+
   /* BADGE CELEBRATION OVERLAY */
   .celebration-overlay {
     display:none; position:fixed; inset:0; z-index:600;
@@ -649,7 +672,10 @@
   <div class="profile-sheet" id="profile-sheet">
     <div class="profile-hero">
       <button class="profile-hero-close" onclick="closeProfile()">×</button>
-      <div class="profile-avatar" id="prof-avatar">?</div>
+      <div class="profile-avatar-wrap" onclick="toggleAvatarPicker()">
+        <div class="profile-avatar" id="prof-avatar">?</div>
+        <div class="avatar-edit-hint">✏️</div>
+      </div>
       <div class="profile-hero-info">
         <div style="display:flex;align-items:center;gap:10px;">
           <div class="profile-hero-name" id="prof-name">—</div>
@@ -675,6 +701,12 @@
       </div>
     </div>
     <div class="profile-body">
+      <!-- Avatar Picker -->
+      <div class="avatar-picker" id="avatar-picker">
+        <div class="profile-section-title" style="margin-bottom:8px;">Choose your avatar</div>
+        <div class="avatar-grid" id="avatar-grid"></div>
+        <button onclick="closeAvatarPicker()" style="width:100%;padding:8px;background:var(--teal);color:white;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;">Done</button>
+      </div>
       <div class="profile-section-title">Badges Earned</div>
       <div class="badges-grid" id="prof-badges"></div>
       <div class="profile-section-title">Milestone Rewards</div>
@@ -1000,7 +1032,9 @@ function logout(){
 }
 function setupBar(){
   const ini=CU.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
-  document.getElementById('topbar-initials').textContent=ini;
+  const av=CU.avatar||ini;
+  document.getElementById('topbar-initials').textContent=av;
+  document.getElementById('topbar-initials').style.fontSize=CU.avatar?'16px':'11px';
   document.getElementById('topbar-name').textContent=CU.name;
   document.getElementById('topbar-role').textContent=RL[CU.role];
 }
@@ -1266,11 +1300,12 @@ function renderTeam(){
 
   document.getElementById('team-grid').innerHTML=`<div class="leaderboard">${sorted.map((u,i)=>{
     const ini=u.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+    const av=u.avatar||ini;
     const pts=u.points||0;
     const pct=maxPts>0?Math.round((pts/maxPts)*100):0;
     const rank=i+1;
     const rankCls=rank<=3?`rank-${rank}`:'';
-    const medal=medals[i]||'';
+    const medal=pts>0?(medals[i]||''):'';
     const isMe=u.id===CU.id;
 
     // per-user task stats
@@ -1279,8 +1314,8 @@ function renderTeam(){
     const assigned=S.tasks.filter(t=>t.assignedTo===u.id&&t.status==='open').length;
 
     return `<div class="lb-row" onclick="openProfile('${u.id}')">
-      <div class="lb-rank ${rank<=3?'top':''}">${medal||rank}</div>
-      <div class="lb-avatar ${rankCls}">${ini}</div>
+      <div class="lb-rank ${pts>0&&rank<=3?'top':''}">${pts>0?(medal||rank):'—'}</div>
+      <div class="lb-avatar ${rankCls}" style="${u.avatar?'font-size:24px;':''}">${av}</div>
       <div class="lb-info">
         <div class="lb-name">${esc(u.name)}${isMe?'<span class="lb-you-badge">You</span>':''}</div>
         <div class="lb-meta">
@@ -1514,7 +1549,8 @@ function openProfile(uid){
   // Also sync CU if viewing own profile
   if(uid===CU.id) { Object.assign(CU, u); }
   const ini=u.name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
-  document.getElementById('prof-avatar').textContent=ini;
+  document.getElementById('prof-avatar').textContent=u.avatar||ini;
+  document.getElementById('prof-avatar').style.fontSize=u.avatar?'28px':'';
   document.getElementById('prof-name').textContent=u.name;
   document.getElementById('prof-role').textContent=RF[u.role]||u.role;
   document.getElementById('prof-pts').innerHTML=`${u.points||0} <span>pts</span>`;
@@ -1575,6 +1611,52 @@ function openProfile(uid){
 
   document.getElementById('profile-overlay').classList.add('open');
 }
+const AVATARS = [
+  // Faces
+  '😎','🤩','😈','🧐','🥳','😴','🤓','😇','🥸','🤠',
+  // Animals
+  '🦁','🐼','🐯','🦊','🐨','🐸','🦄','🦋','🐙','🦖',
+  // Food
+  '☕','🍕','🍪','🍩','🌮','🍜','🍓','🧁','🍦','🥑',
+  // Sports
+  '⚽','🏀','🎾','🏊','🤸','🏋️','🎯','🎮','🎸','🎨',
+  // Nature
+  '🌵','🌊','☀️','🍀','🌸','⚡','🔥','🌈','🌙','❄️',
+  // Fun
+  '👽','🚀','🦸','🐉','🎪','🏆','💎','⚔️','🎭','🛸',
+];
+
+function toggleAvatarPicker(){
+  const picker=document.getElementById('avatar-picker');
+  const isOpen=picker.classList.contains('open');
+  if(isOpen){ closeAvatarPicker(); return; }
+  // Build grid
+  const u=S.users.find(x=>x.id===profileUid);
+  const current=u?.avatar||'';
+  document.getElementById('avatar-grid').innerHTML=AVATARS.map(em=>
+    `<div class="avatar-opt${em===current?' selected':''}" onclick="selectAvatar('${em}')">${em}</div>`
+  ).join('');
+  picker.classList.add('open');
+}
+function closeAvatarPicker(){
+  document.getElementById('avatar-picker').classList.remove('open');
+}
+function selectAvatar(em){
+  const u=S.users.find(x=>x.id===profileUid); if(!u) return;
+  u.avatar=em;
+  if(profileUid===CU.id) CU.avatar=em;
+  save();
+  // update avatar display
+  document.getElementById('prof-avatar').textContent=em;
+  // update topbar if own profile
+  if(profileUid===CU.id) setupBar();
+  // highlight selected
+  document.querySelectorAll('.avatar-opt').forEach(el=>{
+    el.classList.toggle('selected', el.textContent===em);
+  });
+  renderTeam();
+}
+
 function closeProfile(){
   document.getElementById('profile-overlay').classList.remove('open');
   // reset edit form if open
@@ -1617,7 +1699,7 @@ function saveProfileEdit(){
   document.getElementById('prof-name').textContent=newName;
   document.getElementById('prof-role').textContent=RF[u.role]||u.role;
   const ini=newName.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
-  document.getElementById('prof-avatar').textContent=ini;
+  document.getElementById('prof-avatar').textContent=u.avatar||ini;
   renderTeam(); renderAdmin();
   toast('Profile updated!');
 }
