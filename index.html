@@ -602,30 +602,9 @@
 
     <!-- ADMIN -->
     <div class="tab-panel" id="tab-admin">
-      <div class="page-header"><div><h1 class="page-title">Admin</h1><p class="page-subtitle">Invite codes &amp; team management</p></div></div>
+      <div class="page-header"><div><h1 class="page-title">Admin</h1><p class="page-subtitle">Team management</p></div></div>
 
-      <div class="admin-section">
-        <div class="admin-section-title">
-          <span>Invite Codes</span>
-          <button class="btn-primary" style="font-size:12px;padding:6px 13px;" onclick="openInviteModal()">Edit Codes</button>
-        </div>
-        <p style="font-size:13px;color:var(--text-soft);margin-bottom:13px;">Share these codes with new team members when they create their profiles. Each code grants a specific role.</p>
-        <div class="invite-code-box">
-          <div>
-            <div class="invite-code-label">Hourly Associate</div>
-            <div class="invite-code-value hidden" id="code-hourly" onclick="toggleCode('hourly')">——</div>
-          </div>
-          <span class="invite-toggle" onclick="toggleCode('hourly')">Reveal</span>
-        </div>
-        <div class="invite-code-box">
-          <div>
-            <div class="invite-code-label">Manager</div>
-            <div class="invite-code-value hidden" id="code-manager" onclick="toggleCode('manager')">——</div>
-          </div>
-          <span class="invite-toggle" onclick="toggleCode('manager')">Reveal</span>
-        </div>
 
-      </div>
 
       <div class="admin-section" id="pending-approvals-section" style="display:none;">
         <div class="admin-section-title" style="color:var(--teal);">
@@ -672,7 +651,7 @@
   <div class="profile-sheet" id="profile-sheet">
     <div class="profile-hero">
       <button class="profile-hero-close" onclick="closeProfile()">×</button>
-      <div class="profile-avatar-wrap" onclick="toggleAvatarPicker()">
+      <div class="profile-avatar-wrap" onclick="toggleAvatarPicker(event)">
         <div class="profile-avatar" id="prof-avatar">?</div>
         <div class="avatar-edit-hint">✏️</div>
       </div>
@@ -1626,17 +1605,21 @@ const AVATARS = [
   '👽','🚀','🦸','🐉','🎪','🏆','💎','⚔️','🎭','🛸',
 ];
 
-function toggleAvatarPicker(){
+function toggleAvatarPicker(e){
+  if(e) e.stopPropagation();
   const picker=document.getElementById('avatar-picker');
   const isOpen=picker.classList.contains('open');
   if(isOpen){ closeAvatarPicker(); return; }
-  // Build grid
+  // Only allow editing own profile, or manager editing anyone
+  if(profileUid!==CU.id && CU.role!=='manager'){ return; }
   const u=S.users.find(x=>x.id===profileUid);
   const current=u?.avatar||'';
   document.getElementById('avatar-grid').innerHTML=AVATARS.map(em=>
     `<div class="avatar-opt${em===current?' selected':''}" onclick="selectAvatar('${em}')">${em}</div>`
   ).join('');
   picker.classList.add('open');
+  // scroll picker into view
+  setTimeout(()=>picker.scrollIntoView({behavior:'smooth',block:'nearest'}),100);
 }
 function closeAvatarPicker(){
   document.getElementById('avatar-picker').classList.remove('open');
@@ -1659,9 +1642,9 @@ function selectAvatar(em){
 
 function closeProfile(){
   document.getElementById('profile-overlay').classList.remove('open');
-  // reset edit form if open
   document.getElementById('prof-edit-form').style.display='none';
   document.getElementById('prof-name').style.display='';
+  closeAvatarPicker();
 }
 function toggleProfileEdit(){
   const form=document.getElementById('prof-edit-form');
