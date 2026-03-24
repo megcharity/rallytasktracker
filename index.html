@@ -953,20 +953,25 @@ function hideLoading(){ const el=document.getElementById('db-loading'); if(el) e
 
 // Load all data from Supabase into S
 async function loadAll(){
-  showLoading('Connecting…');
-  const [users, tasks, milestones, claims, settings] = await Promise.all([
-    db('users','GET',null,'?order=created_at'),
-    db('tasks','GET',null,'?order=id'),
-    db('milestones','GET',null,'?order=pts'),
-    db('claims','GET',null,''),
-    db('settings','GET',null,''),
-  ]);
-  S.users      = (users||[]).map(dbToUser);
-  S.tasks      = (tasks||[]).map(dbToTask);
-  S.milestones = (milestones||[]).map(m=>({id:m.id, pts:m.pts, reward:m.reward}));
-  S.claims     = (claims||[]).map(c=>({id:c.id, userId:c.user_id, milestoneId:c.milestone_id, claimedAt:c.claimed_at, redeemedAt:c.redeemed_at}));
-  if(settings){ settings.forEach(s=>{ if(s.key==='code_hourly') S.codes.hourly=s.value; if(s.key==='code_manager') S.codes.manager=s.value; }); }
-  hideLoading();
+  try {
+    showLoading('Connecting…');
+    const [users, tasks, milestones, claims, settings] = await Promise.all([
+      db('users','GET',null,'?order=created_at'),
+      db('tasks','GET',null,'?order=id'),
+      db('milestones','GET',null,'?order=pts'),
+      db('claims','GET',null,''),
+      db('settings','GET',null,''),
+    ]);
+    if(users)      S.users      = users.map(dbToUser);
+    if(tasks)      S.tasks      = tasks.map(dbToTask);
+    if(milestones) S.milestones = milestones.map(m=>({id:m.id, pts:m.pts, reward:m.reward}));
+    if(claims)     S.claims     = claims.map(c=>({id:c.id, userId:c.user_id, milestoneId:c.milestone_id, claimedAt:c.claimed_at, redeemedAt:c.redeemed_at}));
+    if(settings)   settings.forEach(s=>{ if(s.key==='code_hourly') S.codes.hourly=s.value; if(s.key==='code_manager') S.codes.manager=s.value; });
+    hideLoading();
+  } catch(e) {
+    console.error('loadAll error:', e);
+    hideLoading();
+  }
 }
 
 // Map DB row → app user object
@@ -1019,10 +1024,15 @@ function loginDel(){ loginBuf=loginBuf.slice(0,-1); updDots(); }
 function loginClear(){ loginBuf=''; updDots(); document.getElementById('login-error').textContent=''; }
 function updDots(){ for(let i=0;i<4;i++) document.getElementById('ld-'+i).classList.toggle('filled',i<loginBuf.length); }
 async function tryLogin(){
-  showLoading('Signing in…');
-  await loadAll();
-  const u=S.users.find(u=>u.pin===loginBuf);
-  hideLoading();
+  // If we already have users loaded, try immediately
+  let u=S.users.find(x=>x.pin===loginBuf);
+  if(!u){
+    // Try fetching fresh from Supabase
+    showLoading('Signing in…');
+    try{ await loadAll(); } catch(e){ console.warn('Supabase load failed',e); }
+    hideLoading();
+    u=S.users.find(x=>x.pin===loginBuf);
+  }
   if(u){ enterApp(u); }
   else{ document.getElementById('login-error').textContent='Incorrect PIN. Try again.'; loginBuf=''; updDots(); }
 }
@@ -1827,8 +1837,8 @@ function toast(msg){ const el=document.getElementById('toast'); el.textContent=m
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
 document.getElementById('profile-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('profile-overlay'))closeProfile();});
 
-// Load data on page start so users list is ready for login
-loadAll();
+// Load data on page start (non-blocking — PIN pad works immediately)
+loadAll().catch(e=>console.warn('Initial load failed, will retry on login',e));
 
 // Physical keyboard support for PIN entry
 document.addEventListener('keydown', e => {
