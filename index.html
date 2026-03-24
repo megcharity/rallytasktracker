@@ -803,30 +803,7 @@
 </div>
 
 <!-- Edit invite codes -->
-<div class="modal-overlay" id="invite-modal">
-  <div class="modal">
-    <div class="modal-header">
-      <div class="modal-title">Edit Invite Codes</div>
-      <button class="modal-close" onclick="closeInviteModal()">×</button>
-    </div>
-    <div class="modal-body">
-      <p style="font-size:13px;color:var(--text-soft);margin-bottom:14px;">New team members enter these codes when creating their profile. Share only with the right people.</p>
-      <div class="form-group">
-        <label class="form-label">Hourly Associate Code</label>
-        <input class="form-input" id="ic-hourly" type="text" maxlength="16" style="text-transform:uppercase;letter-spacing:0.08em;" oninput="this.value=this.value.toUpperCase()">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Manager Code</label>
-        <input class="form-input" id="ic-manager" type="text" maxlength="16" style="text-transform:uppercase;letter-spacing:0.08em;" oninput="this.value=this.value.toUpperCase()">
-      </div>
 
-      <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:7px;">
-        <button class="btn-secondary" onclick="closeInviteModal()">Cancel</button>
-        <button class="btn-primary" onclick="saveInviteCodes()">Save Codes</button>
-      </div>
-    </div>
-  </div>
-</div>
 
 <!-- Edit user (admin) -->
 <div class="modal-overlay" id="edit-user-modal">
@@ -877,7 +854,7 @@
           <select class="form-input" id="au-role">
             <option value="hourly">Hourly Associate</option>
             <option value="manager">Manager</option>
-            <option value="gm">Manager</option>
+            
           </select>
         </div>
         <div class="form-group">
