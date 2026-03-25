@@ -1335,24 +1335,11 @@ async function renderAdmin(){
   await loadAll();
   renderCodeDisplay(); renderUserTable(); renderMilestoneAdmin(); renderPendingApprovals();
 }
-function renderCodeDisplay(){
-  document.getElementById('code-hourly').textContent=S.codes.hourly;
-  document.getElementById('code-manager').textContent=S.codes.manager;
-}
-function toggleCode(r){ document.getElementById('code-'+r).classList.toggle('hidden'); }
-function openInviteModal(){
-  document.getElementById('ic-hourly').value=S.codes.hourly;
-  document.getElementById('ic-manager').value=S.codes.manager;
-  document.getElementById('invite-modal').classList.add('open');
-}
-function closeInviteModal(){ document.getElementById('invite-modal').classList.remove('open'); }
-function saveInviteCodes(){
-  const h=document.getElementById('ic-hourly').value.trim().toUpperCase();
-  const m=document.getElementById('ic-manager').value.trim().toUpperCase();
-  if(!h||!m){alert('Codes cannot be empty.');return;}
-  S.codes.hourly=h; S.codes.manager=m;
-  saveCodesDB(); closeInviteModal(); renderCodeDisplay(); toast('Invite codes updated.');
-}
+function renderCodeDisplay(){ /* invite codes removed */ }
+function toggleCode(r){}
+function openInviteModal(){}
+function closeInviteModal(){}
+function saveInviteCodes(){}
 function renderUserTable(){
   document.getElementById('user-table-body').innerHTML=S.users.map(u=>{
     const canEdit=CU.role==='manager';
