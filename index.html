@@ -1341,6 +1341,11 @@ function openInviteModal(){}
 function closeInviteModal(){}
 function saveInviteCodes(){}
 function renderUserTable(){
+  console.log('renderUserTable called, S.users=', S.users);
+  if(!S.users||S.users.length===0){
+    document.getElementById('user-table-body').innerHTML='<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:20px;">No team members found</td></tr>';
+    return;
+  }
   document.getElementById('user-table-body').innerHTML=S.users.map(u=>{
     const canEdit=CU.role==='manager';
     const canDel=CU.role==='manager'&&u.id!==CU.id;
@@ -1384,7 +1389,7 @@ async function saveAddUser(){
   if(result === null){ toast('⚠️ Failed to save — check your connection.'); return; }
   S.users.push(newU);
   closeAddUserModal();
-  renderAdmin(); renderTeam();
+  await renderAdmin(); renderTeam();
   toast(`👋 ${name} added to the team!`);
 }
 function openEditUser(id){
@@ -1410,7 +1415,7 @@ async function saveEditUser(){
   if(editUid===CU.id){ CU=u; setupBar(); }
   saveUser(u); closeEditUserModal(); renderAdmin(); toast('Member updated.');
 }
-async function removeUser(id){ if(!confirm('Remove this team member?'))return; S.users=S.users.filter(u=>u.id!==id); save(); renderAdmin(); renderTeam(); toast('Member removed.'); }
+async function removeUser(id){ if(!confirm('Remove this team member?'))return; await db('users','DELETE',null,`?id=eq.${id}`); await loadAll(); renderAdmin(); renderTeam(); toast('Member removed.'); }
 
 // ═══════════════════════════════════════════════
 // BADGE DEFINITIONS
