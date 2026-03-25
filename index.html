@@ -950,7 +950,7 @@ async function saveTask(t){
   if(t.id&&t.id>0){await db('tasks','PATCH',row,`?id=eq.${t.id}`);}
   else{const res=await db('tasks','POST',row,'');if(res&&res[0])t.id=res[0].id;}
 }
-async function insertUser(u){await db('users','POST',{id:u.id,name:u.name,role:u.role,pin:u.pin,points:0,badges:[],pending_badges:[],avatar:''},'');}
+async function insertUser(u){ return await db('users','POST',{id:u.id,name:u.name,role:u.role,pin:u.pin,points:0,badges:[],pending_badges:[],avatar:''},''); }
 async function saveClaim(c){await db('claims','POST',{id:c.id,user_id:c.userId,milestone_id:c.milestoneId,claimed_at:c.claimedAt},'');}
 async function redeemClaimDB(cid){await db('claims','PATCH',{redeemed_at:new Date().toISOString()},`?id=eq.${cid}`);}
 async function saveMilestonesDB(){for(const m of S.milestones)await db('milestones','PATCH',{pts:m.pts,reward:m.reward},`?id=eq.${m.id}`);}
@@ -1025,8 +1025,9 @@ function setupBar(){
 function switchTab(t){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+t));
-  if(t==='admin') renderAdmin();
-  if(t==='team')  renderTeam();
+  if(t==='admin') loadAll().then(()=>{ renderAdmin(); });
+  if(t==='team')  loadAll().then(()=>{ renderTeam(); });
+  if(t==='tasks') loadAll().then(()=>{ renderTasks(); });
 }
 
 // ═══════════════════════════════════════════════
@@ -1381,7 +1382,7 @@ function openAddUserModal(){
   document.getElementById('add-user-modal').classList.add('open');
 }
 function closeAddUserModal(){ document.getElementById('add-user-modal').classList.remove('open'); }
-function saveAddUser(){
+async function saveAddUser(){
   const name=document.getElementById('au-name').value.trim();
   const pin=document.getElementById('au-pin').value.trim();
   const role=document.getElementById('au-role').value;
@@ -1389,9 +1390,12 @@ function saveAddUser(){
   if(!/^\d{4}$/.test(pin)){toast('⚠️ PIN must be exactly 4 digits.'); return;}
   if(S.users.some(u=>u.pin===pin)){toast('⚠️ That PIN is already in use — choose another.'); return;}
   const newU={ id:'u'+Date.now(), name, role, pin, points:0, badges:[], pendingBadges:[], avatar:'', createdAt:new Date().toISOString() };
-  insertUser(newU);
+  const result = await insertUser(newU);
+  if(result === null){ toast('⚠️ Failed to save — check your connection.'); return; }
   S.users.push(newU);
-  closeAddUserModal(); renderAdmin(); renderTeam();
+  closeAddUserModal();
+  await loadAll();
+  renderAdmin(); renderTeam();
   toast(`👋 ${name} added to the team!`);
 }
 function openEditUser(id){
@@ -1404,7 +1408,7 @@ function openEditUser(id){
   document.getElementById('edit-user-modal').classList.add('open');
 }
 function closeEditUserModal(){ document.getElementById('edit-user-modal').classList.remove('open'); }
-function saveEditUser(){
+async function saveEditUser(){
   const u=S.users.find(u=>u.id===editUid); if(!u)return;
   const name=document.getElementById('eu-name').value.trim();
   const pin=document.getElementById('eu-pin').value.trim();
@@ -1417,7 +1421,7 @@ function saveEditUser(){
   if(editUid===CU.id){ CU=u; setupBar(); }
   saveUser(u); closeEditUserModal(); renderAdmin(); toast('Member updated.');
 }
-function removeUser(id){ if(!confirm('Remove this team member?'))return; S.users=S.users.filter(u=>u.id!==id); save(); renderAdmin(); renderTeam(); toast('Member removed.'); }
+async function removeUser(id){ if(!confirm('Remove this team member?'))return; S.users=S.users.filter(u=>u.id!==id); save(); renderAdmin(); renderTeam(); toast('Member removed.'); }
 
 // ═══════════════════════════════════════════════
 // BADGE DEFINITIONS
@@ -1671,7 +1675,7 @@ function toggleProfileEdit(){
     document.getElementById('prof-edit-name').focus();
   }
 }
-function saveProfileEdit(){
+async function saveProfileEdit(){
   const u=S.users.find(x=>x.id===profileUid); if(!u) return;
   const newName=document.getElementById('prof-edit-name').value.trim();
   if(!newName){ document.getElementById('prof-edit-name').style.borderColor='red'; return; }
