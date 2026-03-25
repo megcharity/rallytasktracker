@@ -956,43 +956,9 @@ async function redeemClaimDB(cid){await db('claims','PATCH',{redeemed_at:new Dat
 async function saveMilestonesDB(){for(const m of S.milestones)await db('milestones','PATCH',{pts:m.pts,reward:m.reward},`?id=eq.${m.id}`);}
 async function saveCodesDB(){await db('settings','PATCH',{value:S.codes.hourly},`?key=eq.code_hourly`);await db('settings','PATCH',{value:S.codes.manager},`?key=eq.code_manager`);}
 
-const DEFAULTS = {
-  users:[{ id:'u1', name:'Manager', role:'manager', pin:'0000', points:0, badges:[], pendingBadges:[], avatar:'', createdAt:new Date().toISOString() }],
-  tasks:[], milestones:[
-    { id:'m1', pts:10,  reward:'Shoutout on the board! 📣' },
-    { id:'m2', pts:25,  reward:'Free drink of your choice ☕' },
-    { id:'m3', pts:50,  reward:'Free meal up to $15 🍔' },
-    { id:'m4', pts:100, reward:'$25 gift card of your choice 🎁' },
-    { id:'m5', pts:200, reward:'Half day off — your choice 🌴' },
-  ],
-  claims:[], codes:{hourly:'HOURLY24',manager:'MANAGER24'}, nextTid:1, nextUid:10
-};
-let S = load() || JSON.parse(JSON.stringify(DEFAULTS));
-if(!S.milestones) S.milestones=JSON.parse(JSON.stringify(DEFAULTS.milestones));
-if(!S.claims) S.claims=[];
-if(!S.codes) S.codes={hourly:'HOURLY24',manager:'MANAGER24'};
-if(!S.nextTid) S.nextTid=1;
-if(!S.nextUid) S.nextUid=10;
-S.users.forEach(u=>{ if(!u.badges) u.badges=[]; if(!u.pendingBadges) u.pendingBadges=[]; if(!u.avatar) u.avatar=''; if(u.role==='gm') u.role='manager'; });
-save();
-
-let CU=null, filter='all', editTid=null, progTid=null, editUid=null;
-let suName='', suPin='';
-
-// Show loading spinner on auth screen
-function showLoading(){} function hideLoading(){}
-
-// Load all data from Supabase into S
-
-// Map DB row → app user object
-
-function saveTask(t){ if(!t.id||t.id===0){ t.id=S.nextTid++; if(!S.tasks.find(x=>x.id===t.id)) S.tasks.push(t); } save(); }
-function insertUser(u){ S.users.push(u); save(); }
-function saveClaim(c){ save(); }
-function redeemClaimDB(cid){ save(); }
-function saveMilestonesDB(){ save(); }
-function saveCodesDB(){ save(); }
-// legacy save() — now a no-op (everything saved individually)
+// STATE — in-memory, loaded from Supabase on login
+let S={users:[],tasks:[],milestones:[],claims:[],codes:{hourly:'HOURLY24',manager:'MANAGER24'}};
+let CU=null,filter='all',editTid=null,progTid=null,editUid=null,suName='',suPin='';
 
 
 
