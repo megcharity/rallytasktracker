@@ -765,7 +765,7 @@
       </div>
       <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:7px;">
         <button class="btn-secondary" onclick="closeTaskModal()">Cancel</button>
-        <button class="btn-primary" onclick="saveTask()">Save Task</button>
+        <button class="btn-primary" onclick="saveTask_modal()">Save Task</button>
       </div>
     </div>
   </div>
@@ -1231,16 +1231,23 @@ function addLinkRow(v=''){
 }
 function closeTaskModal(){ document.getElementById('task-modal').classList.remove('open'); }
 async function saveTask_modal(){
-  const title=document.getElementById('f-title').value.trim(); if(!title){alert('Please enter a task title.');return;}
+  const title=document.getElementById('f-title').value.trim();
+  if(!title){ alert('Please enter a task title.'); return; }
   const size=document.querySelector('input[name="size"]:checked')?.value||'s';
   const links=[...document.querySelectorAll('#links-list input')].map(i=>i.value.trim()).filter(Boolean);
+  const desc=document.getElementById('f-desc').value.trim();
+  const deadline=document.getElementById('f-deadline').value;
+  const assignedTo=document.getElementById('f-assign').value||null;
+  let taskObj;
   if(editTid){
-    const t=S.tasks.find(t=>t.id==editTid);
-    if(t){ t.title=title; t.description=document.getElementById('f-desc').value.trim(); t.deadline=document.getElementById('f-deadline').value; t.size=size; t.assignedTo=document.getElementById('f-assign').value||null; t.links=links; }
+    taskObj=S.tasks.find(t=>t.id==editTid);
+    if(taskObj){ taskObj.title=title; taskObj.description=desc; taskObj.deadline=deadline; taskObj.size=size; taskObj.assignedTo=assignedTo; taskObj.links=links; }
   } else {
-    S.tasks.push({ id:S.nextTid++, title, description:document.getElementById('f-desc').value.trim(), deadline:document.getElementById('f-deadline').value, size, assignedTo:document.getElementById('f-assign').value||null, links, status:'open', progress:0, pickedUpBy:null, handoffNote:null, createdBy:CU.id, createdAt:new Date().toISOString() });
+    taskObj={ id:0, title, description:desc, deadline, size, assignedTo, links, status:'open', progress:0, pickedUpBy:null, handoffNote:'', completedBy:null, approvedBy:null, createdBy:CU.id, createdAt:new Date().toISOString() };
+    S.tasks.push(taskObj);
   }
-  saveTask(taskObj); closeTaskModal(); renderTasks(); toast(editTid?'Task updated.':'Task created! 🎉');
+  await saveTask(taskObj);
+  closeTaskModal(); renderTasks(); toast(editTid?'Task updated.':'Task created! 🎉');
 }
 
 // ═══════════════════════════════════════════════
@@ -1257,18 +1264,18 @@ function openProg(id,e){
   document.getElementById('progress-modal').classList.add('open');
 }
 function closeProgressModal(){ document.getElementById('progress-modal').classList.remove('open'); }
-function saveProgress(){
+async function saveProgress(){
   const t=S.tasks.find(t=>t.id==progTid); if(!t)return;
   t.progress=parseInt(document.getElementById('prog-slider').value);
-  saveTask(t); closeProgressModal(); renderTasks(); toast('Progress saved!');
+  await saveTask(t); closeProgressModal(); renderTasks(); toast('Progress saved!');
 }
-function releaseTask(){
+async function releaseTask(){
   const note=document.getElementById('release-note').value.trim();
   if(!note){alert('Please leave a handoff note so the next person knows where you left off.');return;}
   const t=S.tasks.find(t=>t.id==progTid); if(!t)return;
   t.progress=parseInt(document.getElementById('prog-slider').value);
   t.handoffNote=note; t.status='open'; t.pickedUpBy=null;
-  saveTask(t); closeProgressModal(); renderTasks(); toast('Task released back to the pool.');
+  await saveTask(t); closeProgressModal(); renderTasks(); toast('Task released back to the pool.');
 }
 
 // ═══════════════════════════════════════════════
