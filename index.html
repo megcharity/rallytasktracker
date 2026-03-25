@@ -1293,7 +1293,7 @@ function addLinkRow(v=''){
   document.getElementById('links-list').appendChild(d);
 }
 function closeTaskModal(){ document.getElementById('task-modal').classList.remove('open'); }
-function saveTask(){
+async function saveTask(){
   const title=document.getElementById('f-title').value.trim(); if(!title){alert('Please enter a task title.');return;}
   const size=document.querySelector('input[name="size"]:checked')?.value||'s';
   const links=[...document.querySelectorAll('#links-list input')].map(i=>i.value.trim()).filter(Boolean);
@@ -1303,7 +1303,7 @@ function saveTask(){
   } else {
     S.tasks.push({ id:S.nextTid++, title, description:document.getElementById('f-desc').value.trim(), deadline:document.getElementById('f-deadline').value, size, assignedTo:document.getElementById('f-assign').value||null, links, status:'open', progress:0, pickedUpBy:null, handoffNote:null, createdBy:CU.id, createdAt:new Date().toISOString() });
   }
-  save(); closeTaskModal(); renderTasks(); toast(editTid?'Task updated.':'Task created! 🎉');
+  await saveTask(taskObj); closeTaskModal(); renderTasks(); toast(editTid?'Task updated.':'Task created! 🎉');
 }
 
 // ═══════════════════════════════════════════════
@@ -1320,18 +1320,18 @@ function openProg(id,e){
   document.getElementById('progress-modal').classList.add('open');
 }
 function closeProgressModal(){ document.getElementById('progress-modal').classList.remove('open'); }
-function saveProgress(){
+async function saveProgress(){
   const t=S.tasks.find(t=>t.id==progTid); if(!t)return;
   t.progress=parseInt(document.getElementById('prog-slider').value);
-  save(); closeProgressModal(); renderTasks(); toast('Progress saved!');
+  await saveTask(t); closeProgressModal(); renderTasks(); toast('Progress saved!');
 }
-function releaseTask(){
+async function releaseTask(){
   const note=document.getElementById('release-note').value.trim();
   if(!note){alert('Please leave a handoff note so the next person knows where you left off.');return;}
   const t=S.tasks.find(t=>t.id==progTid); if(!t)return;
   t.progress=parseInt(document.getElementById('prog-slider').value);
   t.handoffNote=note; t.status='open'; t.pickedUpBy=null;
-  save(); closeProgressModal(); renderTasks(); toast('Task released back to the pool.');
+  await saveTask(t); closeProgressModal(); renderTasks(); toast('Task released back to the pool.');
 }
 
 // ═══════════════════════════════════════════════
@@ -1406,7 +1406,7 @@ function openInviteModal(){
   document.getElementById('invite-modal').classList.add('open');
 }
 function closeInviteModal(){ document.getElementById('invite-modal').classList.remove('open'); }
-function saveInviteCodes(){
+async function saveInviteCodes(){
   const h=document.getElementById('ic-hourly').value.trim().toUpperCase();
   const m=document.getElementById('ic-manager').value.trim().toUpperCase();
   if(!h||!m){alert('Codes cannot be empty.');return;}
@@ -1445,7 +1445,7 @@ function openAddUserModal(){
   document.getElementById('add-user-modal').classList.add('open');
 }
 function closeAddUserModal(){ document.getElementById('add-user-modal').classList.remove('open'); }
-function saveAddUser(){
+async function saveAddUser(){
   const name=document.getElementById('au-name').value.trim();
   const pin=document.getElementById('au-pin').value.trim();
   const role=document.getElementById('au-role').value;
@@ -1468,7 +1468,7 @@ function openEditUser(id){
   document.getElementById('edit-user-modal').classList.add('open');
 }
 function closeEditUserModal(){ document.getElementById('edit-user-modal').classList.remove('open'); }
-function saveEditUser(){
+async function saveEditUser(){
   const u=S.users.find(u=>u.id===editUid); if(!u)return;
   const name=document.getElementById('eu-name').value.trim();
   const pin=document.getElementById('eu-pin').value.trim();
@@ -1529,7 +1529,7 @@ function checkBadges(uid, completedTask){
       newlyEarned.push(b);
     }
   });
-  if(newlyEarned.length) save();
+  if(newlyEarned.length) saveUser(u);
   return newlyEarned;
 }
 
@@ -1694,7 +1694,7 @@ function toggleAvatarPicker(e){
 function closeAvatarPicker(){
   document.getElementById('avatar-picker').classList.remove('open');
 }
-function selectAvatar(em){
+async function selectAvatar(em){
   const u=S.users.find(x=>x.id===profileUid); if(!u) return;
   u.avatar=em;
   if(profileUid===CU.id) CU.avatar=em;
@@ -1735,7 +1735,7 @@ function toggleProfileEdit(){
     document.getElementById('prof-edit-name').focus();
   }
 }
-function saveProfileEdit(){
+async function saveProfileEdit(){
   const u=S.users.find(x=>x.id===profileUid); if(!u) return;
   const newName=document.getElementById('prof-edit-name').value.trim();
   if(!newName){ document.getElementById('prof-edit-name').style.borderColor='red'; return; }
@@ -1769,19 +1769,19 @@ function renderMilestoneAdmin(){
     </div>`).join('');
   renderPendingClaims();
 }
-function addMilestoneRow(){
+async function addMilestoneRow(){
   const id='m'+Date.now();
   const newM={id,pts:0,reward:''};
   await db('milestones','POST',newM,'');
   S.milestones.push(newM);
   renderMilestoneAdmin();
 }
-function removeMilestone(id){
+async function removeMilestone(id){
   await db('milestones','DELETE',null,`?id=eq.${id}`);
   S.milestones=S.milestones.filter(m=>m.id!==id);
   renderMilestoneAdmin();
 }
-function saveMilestones(){
+async function saveMilestones(){
   document.querySelectorAll('#milestone-admin-list input').forEach(inp=>{
     const mid=inp.dataset.mid; const field=inp.dataset.field;
     const m=S.milestones.find(x=>x.id===mid); if(!m)return;
@@ -1822,7 +1822,7 @@ function renderPendingClaims(){
     </div>`;
   }).join('');
 }
-function redeemClaim(cid){
+async function redeemClaim(cid){
   const c=S.claims.find(x=>x.id===cid); if(!c)return;
   c.redeemedAt=new Date().toISOString();
   await redeemClaimDB(c.id); renderPendingClaims(); renderAdmin(); toast('Reward marked as redeemed!');
