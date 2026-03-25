@@ -1025,7 +1025,7 @@ function setupBar(){
 function switchTab(t){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===t));
   document.querySelectorAll('.tab-panel').forEach(p=>p.classList.toggle('active',p.id==='tab-'+t));
-  if(t==='admin') loadAll().then(()=>{ renderAdmin(); });
+  if(t==='admin') renderAdmin();
   if(t==='team')  loadAll().then(()=>{ renderTeam(); });
   if(t==='tasks') loadAll().then(()=>{ renderTasks(); });
 }
@@ -1331,7 +1331,10 @@ function renderTeam(){
 
 // ═══════════════════════════════════════════════
 // ADMIN
-function renderAdmin(){ renderCodeDisplay(); renderUserTable(); renderMilestoneAdmin(); renderPendingApprovals(); }
+async function renderAdmin(){
+  await loadAll();
+  renderCodeDisplay(); renderUserTable(); renderMilestoneAdmin(); renderPendingApprovals();
+}
 function renderCodeDisplay(){
   document.getElementById('code-hourly').textContent=S.codes.hourly;
   document.getElementById('code-manager').textContent=S.codes.manager;
@@ -1394,7 +1397,6 @@ async function saveAddUser(){
   if(result === null){ toast('⚠️ Failed to save — check your connection.'); return; }
   S.users.push(newU);
   closeAddUserModal();
-  await loadAll();
   renderAdmin(); renderTeam();
   toast(`👋 ${name} added to the team!`);
 }
