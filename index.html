@@ -946,9 +946,31 @@ async function loadAll(){
 }
 async function saveUser(u){await db('users','PATCH',{name:u.name,role:u.role,pin:u.pin,points:u.points,badges:u.badges||[],pending_badges:u.pendingBadges||[],avatar:u.avatar||''},`?id=eq.${u.id}`);}
 async function saveTask(t){
-  const row={title:t.title,description:t.description||'',deadline:t.deadline||'',size:t.size,status:t.status,progress:t.progress||0,assigned_to:t.assignedTo||'',picked_up_by:t.pickedUpBy||'',completed_by:t.completedBy||'',approved_by:t.approvedBy||'',handoff_note:t.handoffNote||'',links:t.links||[],created_by:t.createdBy||'',submitted_at:t.submittedAt||null,completed_at:t.completedAt||null};
-  if(t.id&&t.id>0){await db('tasks','PATCH',row,`?id=eq.${t.id}`);}
-  else{const res=await db('tasks','POST',row,'');if(res&&res[0])t.id=res[0].id;}
+  const row={
+    title:t.title,
+    description:t.description||'',
+    deadline:t.deadline||'',
+    size:t.size||'s',
+    status:t.status||'open',
+    progress:t.progress||0,
+    assigned_to:t.assignedTo||null,
+    picked_up_by:t.pickedUpBy||null,
+    completed_by:t.completedBy||null,
+    approved_by:t.approvedBy||null,
+    handoff_note:t.handoffNote||'',
+    links:t.links||[],
+    created_by:t.createdBy||'',
+    submitted_at:t.submittedAt||null,
+    completed_at:t.completedAt||null
+  };
+  if(t.id&&t.id>0){
+    const r=await db('tasks','PATCH',row,`?id=eq.${t.id}`);
+    console.log('PATCH task result:',r);
+  } else {
+    const res=await db('tasks','POST',row,'');
+    console.log('POST task result:',res);
+    if(res&&res[0]) t.id=res[0].id;
+  }
 }
 async function insertUser(u){ return await db('users','POST',{id:u.id,name:u.name,role:u.role,pin:u.pin,points:0,badges:[],pending_badges:[],avatar:''},''); }
 async function saveClaim(c){await db('claims','POST',{id:c.id,user_id:c.userId,milestone_id:c.milestoneId,claimed_at:c.claimedAt},'');}
