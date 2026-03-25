@@ -917,9 +917,44 @@ const RF = { manager:'Manager', hourly:'Hourly Associate' };
 const RC = { manager:'role-manager', hourly:'role-hourly' };
 
 // ═══════════════════════════════════════════════
-// STATE (localStorage)
-function load(){ try{ return JSON.parse(localStorage.getItem('rally_state'))||null; }catch{ return null; } }
-function save(){ localStorage.setItem('rally_state', JSON.stringify(S)); }
+// SUPABASE
+const SB_URL='https://dndnkvxefjgcufllkkpj.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRuZG5rdnhlZmpnY3VmbGxra3BqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwNDU5MTAsImV4cCI6MjA4OTYyMTkxMH0.IF6Lu_CLTP9-eg8_1Ibk8eucty0JN1PZcQikTIetgEs';
+const SH={'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Prefer':'return=representation'};
+async function db(table,method,body,query){
+  try{
+    const r=await fetch(SB_URL+'/rest/v1/'+table+(query||''),{method:method||'GET',headers:SH,body:body?JSON.stringify(body):null});
+    if(method==='DELETE'||r.status===204)return true;
+    if(!r.ok){console.error('DB',r.status,await r.text());return null;}
+    return r.json();
+  }catch(e){console.error('DB err',e);return null;}
+}
+function save(){} // no-op
+function showLoading(msg){let el=document.getElementById('db-msg');if(!el){el=document.createElement('div');el.id='db-msg';el.style.cssText='text-align:center;font-size:13px;color:var(--text-muted);margin-top:12px;';const card=document.querySelector('.auth-card');if(card)card.appendChild(el);}if(el)el.textContent=msg||'';}
+function hideLoading(){showLoading('');}
+function dbToUser(r){return{id:r.id,name:r.name,role:r.role,pin:r.pin,points:r.points||0,badges:r.badges||[],pendingBadges:r.pending_badges||[],avatar:r.avatar||'',createdAt:r.created_at};}
+function dbToTask(r){return{id:r.id,title:r.title,description:r.description||'',deadline:r.deadline||'',size:r.size||'s',status:r.status||'open',progress:r.progress||0,assignedTo:r.assigned_to||null,pickedUpBy:r.picked_up_by||null,completedBy:r.completed_by||null,approvedBy:r.approved_by||null,handoffNote:r.handoff_note||'',links:r.links||[],createdBy:r.created_by||'',createdAt:r.created_at,submittedAt:r.submitted_at,completedAt:r.completed_at};}
+async function loadAll(){
+  showLoading('Loading…');
+  const [users,tasks,milestones,claims,settings]=await Promise.all([db('users','GET',null,'?order=created_at'),db('tasks','GET',null,'?order=id'),db('milestones','GET',null,'?order=pts'),db('claims','GET',null,''),db('settings','GET',null,'')]);
+  if(users)S.users=users.map(dbToUser);
+  if(tasks)S.tasks=tasks.map(dbToTask);
+  if(milestones)S.milestones=milestones.map(m=>({id:m.id,pts:m.pts,reward:m.reward}));
+  if(claims)S.claims=claims.map(c=>({id:c.id,userId:c.user_id,milestoneId:c.milestone_id,claimedAt:c.claimed_at,redeemedAt:c.redeemed_at}));
+  if(settings)settings.forEach(s=>{if(s.key==='code_hourly')S.codes.hourly=s.value;if(s.key==='code_manager')S.codes.manager=s.value;});
+  hideLoading();
+}
+async function saveUser(u){await db('users','PATCH',{name:u.name,role:u.role,pin:u.pin,points:u.points,badges:u.badges||[],pending_badges:u.pendingBadges||[],avatar:u.avatar||''},`?id=eq.${u.id}`);}
+async function saveTask(t){
+  const row={title:t.title,description:t.description||'',deadline:t.deadline||'',size:t.size,status:t.status,progress:t.progress||0,assigned_to:t.assignedTo||'',picked_up_by:t.pickedUpBy||'',completed_by:t.completedBy||'',approved_by:t.approvedBy||'',handoff_note:t.handoffNote||'',links:t.links||[],created_by:t.createdBy||'',submitted_at:t.submittedAt||null,completed_at:t.completedAt||null};
+  if(t.id&&t.id>0){await db('tasks','PATCH',row,`?id=eq.${t.id}`);}
+  else{const res=await db('tasks','POST',row,'');if(res&&res[0])t.id=res[0].id;}
+}
+async function insertUser(u){await db('users','POST',{id:u.id,name:u.name,role:u.role,pin:u.pin,points:0,badges:[],pending_badges:[],avatar:''},'');}
+async function saveClaim(c){await db('claims','POST',{id:c.id,user_id:c.userId,milestone_id:c.milestoneId,claimed_at:c.claimedAt},'');}
+async function redeemClaimDB(cid){await db('claims','PATCH',{redeemed_at:new Date().toISOString()},`?id=eq.${cid}`);}
+async function saveMilestonesDB(){for(const m of S.milestones)await db('milestones','PATCH',{pts:m.pts,reward:m.reward},`?id=eq.${m.id}`);}
+async function saveCodesDB(){await db('settings','PATCH',{value:S.codes.hourly},`?key=eq.code_hourly`);await db('settings','PATCH',{value:S.codes.manager},`?key=eq.code_manager`);}
 
 const DEFAULTS = {
   users:[{ id:'u1', name:'Manager', role:'manager', pin:'0000', points:0, badges:[], pendingBadges:[], avatar:'', createdAt:new Date().toISOString() }],
@@ -948,7 +983,6 @@ let suName='', suPin='';
 function showLoading(){} function hideLoading(){}
 
 // Load all data from Supabase into S
-function loadAll(){ }
 
 // Map DB row → app user object
 
@@ -959,7 +993,6 @@ function redeemClaimDB(cid){ save(); }
 function saveMilestonesDB(){ save(); }
 function saveCodesDB(){ save(); }
 // legacy save() — now a no-op (everything saved individually)
-function save(){}
 
 
 
@@ -1230,7 +1263,7 @@ function addLinkRow(v=''){
   document.getElementById('links-list').appendChild(d);
 }
 function closeTaskModal(){ document.getElementById('task-modal').classList.remove('open'); }
-function saveTask(){
+async function saveTask_modal(){
   const title=document.getElementById('f-title').value.trim(); if(!title){alert('Please enter a task title.');return;}
   const size=document.querySelector('input[name="size"]:checked')?.value||'s';
   const links=[...document.querySelectorAll('#links-list input')].map(i=>i.value.trim()).filter(Boolean);
@@ -1772,7 +1805,7 @@ function toast(msg){ const el=document.getElementById('toast'); el.textContent=m
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
 document.getElementById('profile-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('profile-overlay'))closeProfile();});
 
-// State loaded from localStorage on startup
+// Data loaded via tryLogin()
 
 // Physical keyboard support for PIN entry
 document.addEventListener('keydown', e => {
