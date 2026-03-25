@@ -554,10 +554,6 @@
 </div>
 
 <!-- ══════ APP ══════ -->
-<div id="loading-overlay" style="display:none;position:fixed;inset:0;background:var(--teal);z-index:999;align-items:center;justify-content:center;flex-direction:column;gap:14px;">
-  <div style="font-family:'DM Serif Display',serif;font-size:32px;color:white;">Rally</div>
-  <div style="font-size:13px;color:rgba(255,255,255,0.7);" id="loading-msg">Loading…</div>
-</div>
 <div id="app">
   <div class="topbar">
     <div class="topbar-logo">Rally</div>
@@ -921,96 +917,47 @@ const RF = { manager:'Manager', hourly:'Hourly Associate' };
 const RC = { manager:'role-manager', hourly:'role-hourly' };
 
 // ═══════════════════════════════════════════════
-// SUPABASE
-const SUPA_URL = 'https://dndnkvxefjgcufllkkpj.supabase.co';
-const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRuZG5rdnhlZmpnY3VmbGxra3BqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwNDU5MTAsImV4cCI6MjA4OTYyMTkxMH0.IF6Lu_CLTP9-eg8_1Ibk8eucty0JN1PZcQikTIetgEs';
-const H = { 'Content-Type':'application/json', 'apikey':SUPA_KEY, 'Authorization':'Bearer '+SUPA_KEY, 'Prefer':'return=representation' };
+// STATE (localStorage)
+function load(){ try{ return JSON.parse(localStorage.getItem('rally_state'))||null; }catch{ return null; } }
+function save(){ localStorage.setItem('rally_state', JSON.stringify(S)); }
 
-async function db(table, method='GET', body=null, query=''){
-  const r = await fetch(`${SUPA_URL}/rest/v1/${table}${query}`, {
-    method, headers: H, body: body ? JSON.stringify(body) : null
-  });
-  if(!r.ok){ const e=await r.text(); console.error('DB error',table,method,e); return null; }
-  if(method==='DELETE'||r.status===204) return true;
-  return r.json();
-}
+const DEFAULTS = {
+  users:[{ id:'u1', name:'Manager', role:'manager', pin:'0000', points:0, badges:[], pendingBadges:[], avatar:'', createdAt:new Date().toISOString() }],
+  tasks:[], milestones:[
+    { id:'m1', pts:10,  reward:'Shoutout on the board! 📣' },
+    { id:'m2', pts:25,  reward:'Free drink of your choice ☕' },
+    { id:'m3', pts:50,  reward:'Free meal up to $15 🍔' },
+    { id:'m4', pts:100, reward:'$25 gift card of your choice 🎁' },
+    { id:'m5', pts:200, reward:'Half day off — your choice 🌴' },
+  ],
+  claims:[], codes:{hourly:'HOURLY24',manager:'MANAGER24'}, nextTid:1, nextUid:10
+};
+let S = load() || JSON.parse(JSON.stringify(DEFAULTS));
+if(!S.milestones) S.milestones=JSON.parse(JSON.stringify(DEFAULTS.milestones));
+if(!S.claims) S.claims=[];
+if(!S.codes) S.codes={hourly:'HOURLY24',manager:'MANAGER24'};
+if(!S.nextTid) S.nextTid=1;
+if(!S.nextUid) S.nextUid=10;
+S.users.forEach(u=>{ if(!u.badges) u.badges=[]; if(!u.pendingBadges) u.pendingBadges=[]; if(!u.avatar) u.avatar=''; if(u.role==='gm') u.role='manager'; });
+save();
 
-// ═══════════════════════════════════════════════
-// STATE (in-memory, loaded from Supabase on login)
-let S = { users:[], tasks:[], milestones:[], claims:[], codes:{hourly:'HOURLY24',manager:'MANAGER24'} };
 let CU=null, filter='all', editTid=null, progTid=null, editUid=null;
 let suName='', suPin='';
 
 // Show loading spinner on auth screen
-function showLoading(msg='Loading…'){
-  let el=document.getElementById('db-loading');
-  if(!el){ el=document.createElement('div'); el.id='db-loading';
-    el.style.cssText='text-align:center;font-size:13px;color:var(--text-muted);margin-top:14px;';
-    document.querySelector('.auth-card').appendChild(el); }
-  el.textContent=msg;
-}
-function hideLoading(){ const el=document.getElementById('db-loading'); if(el) el.textContent=''; }
+function showLoading(){} function hideLoading(){}
 
 // Load all data from Supabase into S
-async function loadAll(){
-  try {
-    showLoading('Connecting…');
-    const [users, tasks, milestones, claims, settings] = await Promise.all([
-      db('users','GET',null,'?order=created_at'),
-      db('tasks','GET',null,'?order=id'),
-      db('milestones','GET',null,'?order=pts'),
-      db('claims','GET',null,''),
-      db('settings','GET',null,''),
-    ]);
-    if(users)      S.users      = users.map(dbToUser);
-    if(tasks)      S.tasks      = tasks.map(dbToTask);
-    if(milestones) S.milestones = milestones.map(m=>({id:m.id, pts:m.pts, reward:m.reward}));
-    if(claims)     S.claims     = claims.map(c=>({id:c.id, userId:c.user_id, milestoneId:c.milestone_id, claimedAt:c.claimed_at, redeemedAt:c.redeemed_at}));
-    if(settings)   settings.forEach(s=>{ if(s.key==='code_hourly') S.codes.hourly=s.value; if(s.key==='code_manager') S.codes.manager=s.value; });
-    hideLoading();
-  } catch(e) {
-    console.error('loadAll error:', e);
-    hideLoading();
-  }
-}
+function loadAll(){ }
 
 // Map DB row → app user object
-function dbToUser(r){ return { id:r.id, name:r.name, role:r.role, pin:r.pin, points:r.points||0, badges:r.badges||[], pendingBadges:r.pending_badges||[], avatar:r.avatar||'', createdAt:r.created_at }; }
 
-// Map DB row → app task object
-function dbToTask(r){ return { id:r.id, title:r.title, description:r.description||'', deadline:r.deadline||'', size:r.size||'s', status:r.status||'open', progress:r.progress||0, assignedTo:r.assigned_to||null, pickedUpBy:r.picked_up_by||null, completedBy:r.completed_by||null, approvedBy:r.approved_by||null, handoffNote:r.handoff_note||'', links:r.links||[], createdBy:r.created_by||'', createdAt:r.created_at, submittedAt:r.submitted_at, completedAt:r.completed_at }; }
-
-// ─── SAVE HELPERS ───────────────────────────────
-async function saveUser(u){
-  await db('users','PATCH',{name:u.name,role:u.role,pin:u.pin,points:u.points,badges:u.badges||[],pending_badges:u.pendingBadges||[],avatar:u.avatar||''},`?id=eq.${u.id}`);
-}
-async function saveTask(t){
-  const row={title:t.title,description:t.description||'',deadline:t.deadline||'',size:t.size,status:t.status,progress:t.progress||0,assigned_to:t.assignedTo||'',picked_up_by:t.pickedUpBy||'',completed_by:t.completedBy||'',approved_by:t.approvedBy||'',handoff_note:t.handoffNote||'',links:t.links||[],created_by:t.createdBy||'',submitted_at:t.submittedAt||null,completed_at:t.completedAt||null};
-  if(t.id && typeof t.id==='number' && t.id>0){
-    await db('tasks','PATCH',row,`?id=eq.${t.id}`);
-  } else {
-    const res=await db('tasks','POST',row,'');
-    if(res&&res[0]) t.id=res[0].id;
-  }
-}
-async function insertUser(u){
-  await db('users','POST',{id:u.id,name:u.name,role:u.role,pin:u.pin,points:0,badges:[],pending_badges:[],avatar:''},'');
-}
-async function saveClaim(c){
-  await db('claims','POST',{id:c.id,user_id:c.userId,milestone_id:c.milestoneId,claimed_at:c.claimedAt},'');
-}
-async function redeemClaimDB(cid){
-  await db('claims','PATCH',{redeemed_at:new Date().toISOString()},`?id=eq.${cid}`);
-}
-async function saveMilestonesDB(){
-  for(const m of S.milestones){
-    await db('milestones','PATCH',{pts:m.pts,reward:m.reward},`?id=eq.${m.id}`);
-  }
-}
-async function saveCodesDB(){
-  await db('settings','PATCH',{value:S.codes.hourly},`?key=eq.code_hourly`);
-  await db('settings','PATCH',{value:S.codes.manager},`?key=eq.code_manager`);
-}
+function saveTask(t){ if(!t.id||t.id===0){ t.id=S.nextTid++; if(!S.tasks.find(x=>x.id===t.id)) S.tasks.push(t); } save(); }
+function insertUser(u){ S.users.push(u); save(); }
+function saveClaim(c){ save(); }
+function redeemClaimDB(cid){ save(); }
+function saveMilestonesDB(){ save(); }
+function saveCodesDB(){ save(); }
 // legacy save() — now a no-op (everything saved individually)
 function save(){}
 
@@ -1024,15 +971,10 @@ function loginDel(){ loginBuf=loginBuf.slice(0,-1); updDots(); }
 function loginClear(){ loginBuf=''; updDots(); document.getElementById('login-error').textContent=''; }
 function updDots(){ for(let i=0;i<4;i++) document.getElementById('ld-'+i).classList.toggle('filled',i<loginBuf.length); }
 async function tryLogin(){
-  // If we already have users loaded, try immediately
-  let u=S.users.find(x=>x.pin===loginBuf);
-  if(!u){
-    // Try fetching fresh from Supabase
-    showLoading('Signing in…');
-    try{ await loadAll(); } catch(e){ console.warn('Supabase load failed',e); }
-    hideLoading();
-    u=S.users.find(x=>x.pin===loginBuf);
-  }
+  showLoading('Signing in…');
+  await loadAll();
+  hideLoading();
+  const u=S.users.find(u=>u.pin===loginBuf);
   if(u){ enterApp(u); }
   else{ document.getElementById('login-error').textContent='Incorrect PIN. Try again.'; loginBuf=''; updDots(); }
 }
@@ -1046,7 +988,7 @@ function enterApp(user){
   const pending=[...(CU.pendingBadges||[])];
   if(pending.length){
     const u=S.users.find(x=>x.id===CU.id);
-    if(u){ u.pendingBadges=[]; await saveUser(u); }
+    if(u){ u.pendingBadges=[]; saveUser(u); }
     let delay=800;
     pending.forEach(bid=>{
       const badge=BADGE_DEFS.find(b=>b.id===bid);
@@ -1055,14 +997,9 @@ function enterApp(user){
     });
   }
 }
-async function refreshData(){
-  const overlay=document.getElementById('loading-overlay');
-  overlay.style.display='flex';
-  document.getElementById('loading-msg').textContent='Refreshing…';
-  await loadAll();
+function refreshData(){
   renderTasks(); renderTeam();
-  if(CU.role==='manager') renderAdmin();
-  overlay.style.display='none';
+  if(CU&&CU.role==='manager') renderAdmin();
   toast('Data refreshed!');
 }
 function logout(){
@@ -1190,11 +1127,11 @@ function togDetail(id){ document.getElementById('detail-'+id).classList.toggle('
 
 // ═══════════════════════════════════════════════
 // TASK ACTIONS
-async function pickUp(id,e){ e&&e.stopPropagation(); const t=S.tasks.find(t=>t.id==id); if(!t)return; t.status='in-progress'; t.pickedUpBy=CU.id; t.handoffNote=''; await saveTask(t); renderTasks(); toast('Task picked up! Go get it 💪'); }
+function pickUp(id,e){ e&&e.stopPropagation(); const t=S.tasks.find(t=>t.id==id); if(!t)return; t.status='in-progress'; t.pickedUpBy=CU.id; t.handoffNote=''; saveTask(t); renderTasks(); toast('Task picked up! Go get it 💪'); }
 function submitApproval(id,e){
   e&&e.stopPropagation(); const t=S.tasks.find(t=>t.id==id); if(!t)return;
   t.status='pending-approval'; t.progress=100; t.completedBy=CU.id; t.submittedAt=new Date().toISOString();
-  await saveTask(t); renderTasks();
+  saveTask(t); renderTasks();
   toast('Submitted! Waiting for manager approval ⏳');
 }
 function approveTask(id,e){
@@ -1213,7 +1150,7 @@ function approveTask(id,e){
     if(newBadges.length){
       if(isSelf){
         // Worker is logged in right now — show celebration immediately
-        await saveTask(t); await saveUser(worker);
+        saveTask(t); saveUser(worker);
         renderTasks(); renderTeam(); renderAdmin();
         toast(`✅ Complete! +${ptsEarned} pts earned`);
         let delay=600;
@@ -1226,12 +1163,12 @@ function approveTask(id,e){
       }
     }
   }
-  await saveTask(t);
-  if(worker) await saveUser(worker);
+  saveTask(t);
+  if(worker) saveUser(worker);
   renderTasks(); renderTeam(); renderAdmin();
   toast(`✅ ${isSelf?'Complete':'Approved'}! +${ptsEarned} pts${!isSelf?' awarded to '+(worker?.name||'team member'):''}`);
 }
-async function delTask(id,e){ e&&e.stopPropagation(); if(!confirm('Delete this task?'))return; await db('tasks','DELETE',null,`?id=eq.${id}`); S.tasks=S.tasks.filter(t=>t.id!=id); renderTasks(); toast('Task deleted.'); }
+function delTask(id,e){ e&&e.stopPropagation(); if(!confirm('Delete this task?'))return; S.tasks=S.tasks.filter(t=>t.id!=id); save(); renderTasks(); toast('Task deleted.'); }
 
 let releaseTid=null;
 function openRelease(id,e){
@@ -1250,7 +1187,7 @@ function confirmRelease(){
   const t=S.tasks.find(t=>t.id==releaseTid); if(!t)return;
   t.progress=parseInt(document.getElementById('rel-prog-slider').value);
   t.handoffNote=note; t.status='open'; t.pickedUpBy=null;
-  await saveTask(t); closeRelease(); renderTasks(); renderTeam(); toast('Task released back to the pool.');
+  saveTask(t); closeRelease(); renderTasks(); renderTeam(); toast('Task released back to the pool.');
 }
 
 // ═══════════════════════════════════════════════
@@ -1293,7 +1230,7 @@ function addLinkRow(v=''){
   document.getElementById('links-list').appendChild(d);
 }
 function closeTaskModal(){ document.getElementById('task-modal').classList.remove('open'); }
-async function saveTask(){
+function saveTask(){
   const title=document.getElementById('f-title').value.trim(); if(!title){alert('Please enter a task title.');return;}
   const size=document.querySelector('input[name="size"]:checked')?.value||'s';
   const links=[...document.querySelectorAll('#links-list input')].map(i=>i.value.trim()).filter(Boolean);
@@ -1303,7 +1240,7 @@ async function saveTask(){
   } else {
     S.tasks.push({ id:S.nextTid++, title, description:document.getElementById('f-desc').value.trim(), deadline:document.getElementById('f-deadline').value, size, assignedTo:document.getElementById('f-assign').value||null, links, status:'open', progress:0, pickedUpBy:null, handoffNote:null, createdBy:CU.id, createdAt:new Date().toISOString() });
   }
-  await saveTask(taskObj); closeTaskModal(); renderTasks(); toast(editTid?'Task updated.':'Task created! 🎉');
+  saveTask(taskObj); closeTaskModal(); renderTasks(); toast(editTid?'Task updated.':'Task created! 🎉');
 }
 
 // ═══════════════════════════════════════════════
@@ -1320,18 +1257,18 @@ function openProg(id,e){
   document.getElementById('progress-modal').classList.add('open');
 }
 function closeProgressModal(){ document.getElementById('progress-modal').classList.remove('open'); }
-async function saveProgress(){
+function saveProgress(){
   const t=S.tasks.find(t=>t.id==progTid); if(!t)return;
   t.progress=parseInt(document.getElementById('prog-slider').value);
-  await saveTask(t); closeProgressModal(); renderTasks(); toast('Progress saved!');
+  saveTask(t); closeProgressModal(); renderTasks(); toast('Progress saved!');
 }
-async function releaseTask(){
+function releaseTask(){
   const note=document.getElementById('release-note').value.trim();
   if(!note){alert('Please leave a handoff note so the next person knows where you left off.');return;}
   const t=S.tasks.find(t=>t.id==progTid); if(!t)return;
   t.progress=parseInt(document.getElementById('prog-slider').value);
   t.handoffNote=note; t.status='open'; t.pickedUpBy=null;
-  await saveTask(t); closeProgressModal(); renderTasks(); toast('Task released back to the pool.');
+  saveTask(t); closeProgressModal(); renderTasks(); toast('Task released back to the pool.');
 }
 
 // ═══════════════════════════════════════════════
@@ -1406,12 +1343,12 @@ function openInviteModal(){
   document.getElementById('invite-modal').classList.add('open');
 }
 function closeInviteModal(){ document.getElementById('invite-modal').classList.remove('open'); }
-async function saveInviteCodes(){
+function saveInviteCodes(){
   const h=document.getElementById('ic-hourly').value.trim().toUpperCase();
   const m=document.getElementById('ic-manager').value.trim().toUpperCase();
   if(!h||!m){alert('Codes cannot be empty.');return;}
   S.codes.hourly=h; S.codes.manager=m;
-  await saveCodesDB(); closeInviteModal(); renderCodeDisplay(); toast('Invite codes updated.');
+  saveCodesDB(); closeInviteModal(); renderCodeDisplay(); toast('Invite codes updated.');
 }
 function renderUserTable(){
   document.getElementById('user-table-body').innerHTML=S.users.map(u=>{
@@ -1445,7 +1382,7 @@ function openAddUserModal(){
   document.getElementById('add-user-modal').classList.add('open');
 }
 function closeAddUserModal(){ document.getElementById('add-user-modal').classList.remove('open'); }
-async function saveAddUser(){
+function saveAddUser(){
   const name=document.getElementById('au-name').value.trim();
   const pin=document.getElementById('au-pin').value.trim();
   const role=document.getElementById('au-role').value;
@@ -1453,7 +1390,7 @@ async function saveAddUser(){
   if(!/^\d{4}$/.test(pin)){toast('⚠️ PIN must be exactly 4 digits.'); return;}
   if(S.users.some(u=>u.pin===pin)){toast('⚠️ That PIN is already in use — choose another.'); return;}
   const newU={ id:'u'+Date.now(), name, role, pin, points:0, badges:[], pendingBadges:[], avatar:'', createdAt:new Date().toISOString() };
-  await insertUser(newU);
+  insertUser(newU);
   S.users.push(newU);
   closeAddUserModal(); renderAdmin(); renderTeam();
   toast(`👋 ${name} added to the team!`);
@@ -1468,7 +1405,7 @@ function openEditUser(id){
   document.getElementById('edit-user-modal').classList.add('open');
 }
 function closeEditUserModal(){ document.getElementById('edit-user-modal').classList.remove('open'); }
-async function saveEditUser(){
+function saveEditUser(){
   const u=S.users.find(u=>u.id===editUid); if(!u)return;
   const name=document.getElementById('eu-name').value.trim();
   const pin=document.getElementById('eu-pin').value.trim();
@@ -1479,9 +1416,9 @@ async function saveEditUser(){
   u.role=document.getElementById('eu-role').value;
   if(pin) u.pin=pin;
   if(editUid===CU.id){ CU=u; setupBar(); }
-  await saveUser(u); closeEditUserModal(); renderAdmin(); toast('Member updated.');
+  saveUser(u); closeEditUserModal(); renderAdmin(); toast('Member updated.');
 }
-async function removeUser(id){ if(!confirm('Remove this team member?'))return; await db('users','DELETE',null,`?id=eq.${id}`); S.users=S.users.filter(u=>u.id!==id); renderAdmin(); renderTeam(); toast('Member removed.'); }
+function removeUser(id){ if(!confirm('Remove this team member?'))return; S.users=S.users.filter(u=>u.id!==id); save(); renderAdmin(); renderTeam(); toast('Member removed.'); }
 
 // ═══════════════════════════════════════════════
 // BADGE DEFINITIONS
@@ -1529,7 +1466,7 @@ function checkBadges(uid, completedTask){
       newlyEarned.push(b);
     }
   });
-  if(newlyEarned.length) saveUser(u);
+  if(newlyEarned.length) save();
   return newlyEarned;
 }
 
@@ -1608,7 +1545,7 @@ function openProfile(uid){
   // Re-run all badge checks live and update u.badges
   const prevLen=u.badges.length;
   BADGE_DEFS.forEach(b=>{ if(!u.badges.includes(b.id) && b.check(u, S.tasks)) u.badges.push(b.id); });
-  if(u.badges.length!==prevLen) saveUser(u);
+  if(u.badges.length!==prevLen) save();
   document.getElementById('prof-badges').innerHTML=BADGE_DEFS.map(b=>{
     const has=u.badges.includes(b.id);
     const rawSvg=BADGE_SVG[b.id]||'';
@@ -1694,11 +1631,11 @@ function toggleAvatarPicker(e){
 function closeAvatarPicker(){
   document.getElementById('avatar-picker').classList.remove('open');
 }
-async function selectAvatar(em){
+function selectAvatar(em){
   const u=S.users.find(x=>x.id===profileUid); if(!u) return;
   u.avatar=em;
   if(profileUid===CU.id) CU.avatar=em;
-  await saveUser(u);
+  saveUser(u);
   // update avatar display
   document.getElementById('prof-avatar').textContent=em;
   // update topbar if own profile
@@ -1735,7 +1672,7 @@ function toggleProfileEdit(){
     document.getElementById('prof-edit-name').focus();
   }
 }
-async function saveProfileEdit(){
+function saveProfileEdit(){
   const u=S.users.find(x=>x.id===profileUid); if(!u) return;
   const newName=document.getElementById('prof-edit-name').value.trim();
   if(!newName){ document.getElementById('prof-edit-name').style.borderColor='red'; return; }
@@ -1745,7 +1682,7 @@ async function saveProfileEdit(){
   }
   // if editing self, update CU and topbar
   if(profileUid===CU.id){ CU=u; setupBar(); }
-  await saveUser(u);
+  saveUser(u);
   // refresh profile display
   document.getElementById('prof-edit-form').style.display='none';
   document.getElementById('prof-name').style.display='';
@@ -1769,25 +1706,23 @@ function renderMilestoneAdmin(){
     </div>`).join('');
   renderPendingClaims();
 }
-async function addMilestoneRow(){
+function addMilestoneRow(){
   const id='m'+Date.now();
   const newM={id,pts:0,reward:''};
-  await db('milestones','POST',newM,'');
   S.milestones.push(newM);
   renderMilestoneAdmin();
 }
-async function removeMilestone(id){
-  await db('milestones','DELETE',null,`?id=eq.${id}`);
+function removeMilestone(id){
   S.milestones=S.milestones.filter(m=>m.id!==id);
   renderMilestoneAdmin();
 }
-async function saveMilestones(){
+function saveMilestones(){
   document.querySelectorAll('#milestone-admin-list input').forEach(inp=>{
     const mid=inp.dataset.mid; const field=inp.dataset.field;
     const m=S.milestones.find(x=>x.id===mid); if(!m)return;
     m[field]=field==='pts'?parseInt(inp.value)||0:inp.value.trim();
   });
-  await saveMilestonesDB(); toast('Milestones saved!');
+  saveMilestonesDB(); toast('Milestones saved!');
 }
 function renderPendingApprovals(){
   const pending=S.tasks.filter(t=>t.status==='pending-approval');
@@ -1822,10 +1757,10 @@ function renderPendingClaims(){
     </div>`;
   }).join('');
 }
-async function redeemClaim(cid){
+function redeemClaim(cid){
   const c=S.claims.find(x=>x.id===cid); if(!c)return;
   c.redeemedAt=new Date().toISOString();
-  await redeemClaimDB(c.id); renderPendingClaims(); renderAdmin(); toast('Reward marked as redeemed!');
+  redeemClaimDB(c.id); renderPendingClaims(); renderAdmin(); toast('Reward marked as redeemed!');
 }
 
 // ═══════════════════════════════════════════════
@@ -1837,8 +1772,7 @@ function toast(msg){ const el=document.getElementById('toast'); el.textContent=m
 document.querySelectorAll('.modal-overlay').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
 document.getElementById('profile-overlay').addEventListener('click',e=>{if(e.target===document.getElementById('profile-overlay'))closeProfile();});
 
-// Load data on page start (non-blocking — PIN pad works immediately)
-loadAll().catch(e=>console.warn('Initial load failed, will retry on login',e));
+// State loaded from localStorage on startup
 
 // Physical keyboard support for PIN entry
 document.addEventListener('keydown', e => {
